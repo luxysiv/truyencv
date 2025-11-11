@@ -4,7 +4,17 @@ const FONT_SIZE_CSS = `
     font-size: 105% !important;
     line-height: 1.6 !important;
   }
-
+  
+  div.logo2:nth-child(3) > div.dulieu:first-child > div.box > span:last-child,
+  div.logo2:nth-child(3) > div.dulieu:first-child > div.box,
+  #logo,
+  div.logo2:nth-child(3) > div.footer:last-child > center,
+  div.navbar:nth-child(2),
+  div.logo2:nth-child(3) > div.dulieu:first-child,
+  div.logo2:nth-child(3) > div.footer:last-child,
+  div.logo2:nth-child(3) > div.ndtruyen:nth-child(7) > em:first-child,
+  div.logo2:nth-child(3) > div.ndtruyen:nth-child(7) > em:first-child,
+  div.logo2:nth-child(3) > div.bai-viet-box:nth-child(20),
   div[class="dulieu"],
   div[class="navbar"],
   div[class="footer"] {
