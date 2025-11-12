@@ -34,16 +34,22 @@ class ContentRewriter {
       }
     }
 
-    // Xóa đoạn chứa "Bạn đang đọc truyện"
-    if (element.tagName === 'p') {
+    // Xóa đoạn chứa "Bạn đang đọc truyện" hoặc quảng bá tên miền
+    if (['p', 'em', 'center', 'div'].includes(element.tagName)) {
       const text = element.textContent?.toLowerCase() || '';
-      if (text.includes('bạn đang đọc truyện') || text.includes('tại nguồn')) {
+      if (
+        text.includes('bạn đang đọc truyện') ||
+        text.includes('tại nguồn') ||
+        text.includes('truyensextv') ||
+        text.includes('truyensextv55') ||
+        text.includes('website chuyển qua tên miền')
+      ) {
         element.remove();
         return;
       }
     }
 
-    // Xử lý thẻ <a>
+    // Xử lý <a>
     if (element.tagName === 'a') {
       const href = element.getAttribute('href');
       if (href) {
