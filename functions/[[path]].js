@@ -8,7 +8,7 @@ const FONT_SIZE_CSS = `
 
 const SELECTORS_TO_REMOVE = [
   '#logo',
-  '[id="trennd"],
+  '[id="trennd"]',
   'div[class="dulieu"]',
   'div[class="navbar"]',
   'div[class="footer"]'
