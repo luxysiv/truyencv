@@ -4,62 +4,69 @@ const FONT_SIZE_CSS = `
     font-size: 105% !important;
     line-height: 1.6 !important;
   }
+  
+  div.logo2:nth-child(3) > div.dulieu:first-child > div.box > span:last-child,
+  div.logo2:nth-child(3) > div.dulieu:first-child > div.box,
+  #logo,
+  div.logo2:nth-child(3) > div.footer:last-child > center,
+  div.navbar:nth-child(2),
+  div.logo2:nth-child(3) > div.dulieu:first-child,
+  div.logo2:nth-child(3) > div.footer:last-child,
+  div.logo2:nth-child(3) > div.ndtruyen:nth-child(7) > em:first-child,
+  div.logo2:nth-child(3) > div.ndtruyen:nth-child(7) > em:first-child,
+  div.logo2:nth-child(3) > div.bai-viet-box:nth-child(20),
+  div[class="dulieu"],
+  div[class="navbar"],
+  div[class="footer"] {
+    display: none !important;
+  }
 `;
 
-const SELECTORS_TO_REMOVE = [
-  '#logo',
-  'div[class="dulieu"]',
-  'div[class="navbar"]',
-  'div[class="footer"]'
-];
-
 const SCRIPTS_TO_REMOVE_PATTERNS = [
-  /truyensex.*\/anh\
-
-  /lv\/esnk\
-
+  /truyensex.*\/anh\//,
+  /lv\/esnk\//
 ];
 
+// Lớp xử lý chính cho việc thay đổi các thẻ a và loại bỏ script
 class ContentRewriter {
   constructor() {
     this.element = this.element.bind(this);
   }
 
   element(element) {
-
+    // Xóa các script không mong muốn
     if (element.tagName === 'script' && element.getAttribute('src')) {
       const src = element.getAttribute('src');
-      if (SCRIPTS_TO_REMOVE_PATTERNS.some(p => p.test(src))) {
+      const shouldRemove = SCRIPTS_TO_REMOVE_PATTERNS.some(pattern => pattern.test(src));
+      if (shouldRemove) {
         element.remove();
-        return;
       }
     }
 
-    if (element.tagName === 'p') {
-      const text = element.textContent?.toLowerCase() || '';
-      if (text.includes('bạn đang đọc truyện') || text.includes('tại nguồn')) {
-        element.remove();
-        return;
-      }
-    }
-
+    // Chỉnh sửa tất cả các liên kết (thẻ <a>)
     if (element.tagName === 'a') {
       const href = element.getAttribute('href');
       if (href) {
         try {
+          // Chuyển đổi mọi URL (tuyệt đối hay tương đối) thành đường dẫn tương đối
           const newUrl = new URL(href, TARGET_DOMAIN);
           element.setAttribute('href', `${newUrl.pathname}${newUrl.search}`);
-        } catch (e) {}
+        } catch (e) {
+          // Bỏ qua các đường dẫn không hợp lệ
+        }
       }
     }
 
+    // Chỉnh sửa các đường dẫn trong các thuộc tính khác
     ['src', 'data-src'].forEach(attr => {
       const value = element.getAttribute(attr);
       if (value) {
         try {
           const newUrl = new URL(value, TARGET_DOMAIN);
           element.setAttribute(attr, `${newUrl.pathname}${newUrl.search}`);
-        } catch (e) {}
+        } catch (e) {
+          // Bỏ qua các đường dẫn không hợp lệ
+        }
       }
     });
   }
@@ -80,34 +87,27 @@ export async function onRequest(context) {
     const contentType = response.headers.get('Content-Type') || '';
 
     if (contentType.includes('text/html')) {
-      let rewriter = new HTMLRewriter()
-
+      const rewriter = new HTMLRewriter()
+        // Bộ xử lý riêng để chèn <style> và <base> vào thẻ <head>
         .on('head', {
           element(element) {
             element.append(`<base href="${url.origin}">`, { html: true });
             element.append(`<style>${FONT_SIZE_CSS}</style>`, { html: true });
           }
-        });
+        })
+        // Bộ xử lý chung để thay đổi nội dung trang
+        .on('*', new ContentRewriter());
 
-      SELECTORS_TO_REMOVE.forEach(selector => {
-        rewriter = rewriter.on(selector, {
-          element(e) {
-            e.remove();
-          }
-        });
-      });
-
-      rewriter = rewriter.on('*', new ContentRewriter());
       return rewriter.transform(response);
     }
 
     if (contentType.includes('text/css')) {
       const text = await response.text();
-      const replaced = text.replace(
+      const rewriter = text.replace(
         /url\(['"]?(\/[^'")]*)['"]?\)/g,
         `url('${TARGET_DOMAIN}$1')`
       );
-      return new Response(replaced, response);
+      return new Response(rewriter, response);
     }
 
     return response;
