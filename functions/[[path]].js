@@ -1,8 +1,21 @@
 const TARGET_DOMAIN = 'https://truyensextv.com';
+
 const FONT_SIZE_CSS = `
   body, body * {
     font-size: 105% !important;
     line-height: 1.6 !important;
+  }
+
+  p {
+    font-size: 1.05rem !important;
+    line-height: 1.8 !important;
+    color: #f0f0f0 !important;
+    margin: 0.8em 0 !important;
+  }
+
+  a {
+    color: #f2a900 !important;
+    text-decoration: underline !important;
   }
 `;
 
@@ -14,18 +27,25 @@ const SELECTORS_TO_REMOVE = [
 ];
 
 const SCRIPTS_TO_REMOVE_PATTERNS = [
-  /truyensex.*\/anh\//,
-  /lv\/esnk\//
+  /truyensex.*\/anh\
+
+  /lv\/esnk\
+
 ];
 
-// Bộ xử lý chính
+const REMOVE_TEXT_PATTERNS = [
+  'bạn đang đọc truyện',
+  'tại nguồn',
+  'website chuyển qua tên miền'
+];
+
 class ContentRewriter {
   constructor() {
     this.element = this.element.bind(this);
   }
 
   element(element) {
-    // Xóa script không mong muốn
+
     if (element.tagName === 'script' && element.getAttribute('src')) {
       const src = element.getAttribute('src');
       if (SCRIPTS_TO_REMOVE_PATTERNS.some(p => p.test(src))) {
@@ -34,22 +54,22 @@ class ContentRewriter {
       }
     }
 
-    // Xóa đoạn chứa "Bạn đang đọc truyện" hoặc quảng bá tên miền
-    if (['p', 'em', 'center', 'div'].includes(element.tagName)) {
+    if (['p', 'em', 'center', 'div', 'span'].includes(element.tagName)) {
       const text = element.textContent?.toLowerCase() || '';
-      if (
-        text.includes('bạn đang đọc truyện') ||
-        text.includes('tại nguồn') ||
-        text.includes('truyensextv') ||
-        text.includes('truyensextv55') ||
-        text.includes('website chuyển qua tên miền')
-      ) {
+      if (REMOVE_TEXT_PATTERNS.some(p => text.includes(p))) {
         element.remove();
         return;
       }
     }
 
-    // Xử lý <a>
+    if (['p', 'center', 'div'].includes(element.tagName)) {
+      const html = element.innerHTML?.trim() || '';
+      if (html === '' || html === '<br>' || html === '<br/>') {
+        element.remove();
+        return;
+      }
+    }
+
     if (element.tagName === 'a') {
       const href = element.getAttribute('href');
       if (href) {
@@ -60,7 +80,6 @@ class ContentRewriter {
       }
     }
 
-    // Xử lý src và data-src
     ['src', 'data-src'].forEach(attr => {
       const value = element.getAttribute(attr);
       if (value) {
@@ -89,7 +108,7 @@ export async function onRequest(context) {
 
     if (contentType.includes('text/html')) {
       let rewriter = new HTMLRewriter()
-        // Thêm base & CSS
+
         .on('head', {
           element(element) {
             element.append(`<base href="${url.origin}">`, { html: true });
@@ -97,7 +116,6 @@ export async function onRequest(context) {
           }
         });
 
-      // Xóa các phần tử được chỉ định
       SELECTORS_TO_REMOVE.forEach(selector => {
         rewriter = rewriter.on(selector, {
           element(e) {
@@ -106,12 +124,11 @@ export async function onRequest(context) {
         });
       });
 
-      // Xử lý toàn bộ phần tử khác
       rewriter = rewriter.on('*', new ContentRewriter());
+
       return rewriter.transform(response);
     }
 
-    // Nếu là CSS
     if (contentType.includes('text/css')) {
       const text = await response.text();
       const replaced = text.replace(
