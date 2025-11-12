@@ -1,21 +1,8 @@
 const TARGET_DOMAIN = 'https://truyensextv.com';
-
 const FONT_SIZE_CSS = `
   body, body * {
     font-size: 105% !important;
     line-height: 1.6 !important;
-  }
-
-  p {
-    font-size: 1.05rem !important;
-    line-height: 1.8 !important;
-    color: #f0f0f0 !important;
-    margin: 0.8em 0 !important;
-  }
-
-  a {
-    color: #f2a900 !important;
-    text-decoration: underline !important;
   }
 `;
 
@@ -33,12 +20,6 @@ const SCRIPTS_TO_REMOVE_PATTERNS = [
 
 ];
 
-const REMOVE_TEXT_PATTERNS = [
-  'bạn đang đọc truyện',
-  'tại nguồn',
-  'website chuyển qua tên miền'
-];
-
 class ContentRewriter {
   constructor() {
     this.element = this.element.bind(this);
@@ -54,17 +35,9 @@ class ContentRewriter {
       }
     }
 
-    if (['p', 'em', 'center', 'div', 'span'].includes(element.tagName)) {
+    if (element.tagName === 'p') {
       const text = element.textContent?.toLowerCase() || '';
-      if (REMOVE_TEXT_PATTERNS.some(p => text.includes(p))) {
-        element.remove();
-        return;
-      }
-    }
-
-    if (['p', 'center', 'div'].includes(element.tagName)) {
-      const html = element.innerHTML?.trim() || '';
-      if (html === '' || html === '<br>' || html === '<br/>') {
+      if (text.includes('bạn đang đọc truyện') || text.includes('tại nguồn')) {
         element.remove();
         return;
       }
@@ -125,7 +98,6 @@ export async function onRequest(context) {
       });
 
       rewriter = rewriter.on('*', new ContentRewriter());
-
       return rewriter.transform(response);
     }
 
