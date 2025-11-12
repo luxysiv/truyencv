@@ -6,7 +6,6 @@ const FONT_SIZE_CSS = `
   }
 `;
 
-// Các selector cần xóa hoàn toàn khỏi DOM
 const SELECTORS_TO_REMOVE = [
   'div.logo2:nth-child(3) > div.dulieu:first-child > div.box > span:last-child',
   'div.logo2:nth-child(3) > div.dulieu:first-child > div.box',
@@ -27,7 +26,7 @@ const SCRIPTS_TO_REMOVE_PATTERNS = [
   /lv\/esnk\//
 ];
 
-// Bộ xử lý thay đổi các thẻ
+// Bộ xử lý chính
 class ContentRewriter {
   constructor() {
     this.element = this.element.bind(this);
@@ -43,7 +42,16 @@ class ContentRewriter {
       }
     }
 
-    // Xử lý <a>
+    // Xóa đoạn chứa "Bạn đang đọc truyện"
+    if (element.tagName === 'p') {
+      const text = element.textContent?.toLowerCase() || '';
+      if (text.includes('bạn đang đọc truyện') || text.includes('tại nguồn')) {
+        element.remove();
+        return;
+      }
+    }
+
+    // Xử lý thẻ <a>
     if (element.tagName === 'a') {
       const href = element.getAttribute('href');
       if (href) {
@@ -83,23 +91,24 @@ export async function onRequest(context) {
 
     if (contentType.includes('text/html')) {
       let rewriter = new HTMLRewriter()
-        // Thêm CSS và base URL
+        // Thêm base & CSS
         .on('head', {
           element(element) {
             element.append(`<base href="${url.origin}">`, { html: true });
             element.append(`<style>${FONT_SIZE_CSS}</style>`, { html: true });
           }
-        })
-        // Xóa các phần tử không mong muốn
+        });
+
+      // Xóa các phần tử được chỉ định
       SELECTORS_TO_REMOVE.forEach(selector => {
         rewriter = rewriter.on(selector, {
-          element(element) {
-            element.remove();
+          element(e) {
+            e.remove();
           }
         });
       });
 
-      // Xử lý phần còn lại
+      // Xử lý toàn bộ phần tử khác
       rewriter = rewriter.on('*', new ContentRewriter());
       return rewriter.transform(response);
     }
