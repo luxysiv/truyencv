@@ -8,7 +8,6 @@ const FONT_SIZE_CSS = `
 
 const SELECTORS_TO_REMOVE = [
   '#logo',
-  'em[style="color: green;"]',
   'div[class="dulieu"]',
   'div[class="navbar"]',
   'div[class="footer"]'
