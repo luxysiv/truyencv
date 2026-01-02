@@ -1,120 +1,168 @@
 const TARGET_DOMAIN = 'https://truyensextv.com';
-const FONT_SIZE_CSS = `
-  body, body * {
-    font-size: 105% !important;
-    line-height: 1.6 !important;
+
+// Giao diện mới: Hiện đại, tập trung vào trải nghiệm đọc
+const MODERN_UI_CSS = `
+  :root {
+    --primary-color: #2ecc71;
+    --bg-color: #f8f9fa;
+    --text-color: #2c3e50;
+    --box-shadow: 0 4px 15px rgba(0,0,0,0.08);
   }
-  
-  div.logo2:nth-child(3) > div.dulieu:first-child > div.box > span:last-child,
-  div.logo2:nth-child(3) > div.dulieu:first-child > div.box,
-  #logo,
-  div.logo2:nth-child(3) > div.footer:last-child > center,
-  div.navbar:nth-child(2),
-  div.logo2:nth-child(3) > div.dulieu:first-child,
-  div.logo2:nth-child(3) > div.footer:last-child,
-  div.logo2:nth-child(3) > div.ndtruyen:nth-child(7) > em:first-child,
-  div.logo2:nth-child(3) > div.ndtruyen:nth-child(7) > em:first-child,
-  div.logo2:nth-child(3) > div.bai-viet-box:nth-child(20),
-  div[class="dulieu"],
-  div[class="navbar"],
-  div[class="footer"] {
+
+  body {
+    background-color: var(--bg-color) !important;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+    color: var(--text-color) !important;
+    line-height: 1.8 !important;
+    margin: 0 auto !important;
+    max-width: 800px !important;
+  }
+
+  /* Làm mới các khối nội dung */
+  .bai-viet-box, .noidungtruyen, .box, .dulieu, .list2 {
+    background: #ffffff !important;
+    border: none !important;
+    border-radius: 12px !important;
+    box-shadow: var(--box-shadow) !important;
+    margin: 15px 10px !important;
+    padding: 20px !important;
+  }
+
+  /* Tiêu đề truyện */
+  h1, .tenbai, .phdr {
+    color: var(--primary-color) !important;
+    font-size: 1.4rem !important;
+    font-weight: 700 !important;
+    background: none !important;
+    border: none !important;
+    text-transform: none !important;
+  }
+
+  /* Nội dung truyện chính */
+  .noidungtruyen {
+    font-size: 1.25rem !important;
+    text-align: justify !important;
+    color: #1a1a1a !important;
+    white-space: pre-line !important;
+  }
+
+  /* Nút bấm và Phân trang */
+  .page_nav, .page-numbers, .button, .phantrang a {
+    background: var(--primary-color) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 30px !important;
+    padding: 8px 20px !important;
+    margin: 5px !important;
+    text-decoration: none !important;
+    display: inline-block !important;
+    font-size: 14px !important;
+    transition: all 0.3s ease !important;
+  }
+
+  .page_nav:hover, .button:hover {
+    filter: brightness(1.1) !important;
+    transform: translateY(-2px) !important;
+  }
+
+  /* Ẩn rác và quảng cáo */
+  #logo, .footer, .navbar, .sticky-footer, .logo2 > div:first-child,
+  iframe, ins, .adsbygoogle, [id*="google_ads"] {
     display: none !important;
+  }
+
+  /* Tối ưu hóa cho thiết bị di động */
+  @media (max-width: 600px) {
+    .noidungtruyen { font-size: 1.1rem !important; padding: 15px !important; }
+    body { font-size: 16px !important; }
   }
 `;
 
 const SCRIPTS_TO_REMOVE_PATTERNS = [
   /truyensex.*\/anh\//,
-  /lv\/esnk\//
+  /lv\/esnk\//,
+  /google-analytics/,
+  /doubleclick/
 ];
 
-// Lớp xử lý chính cho việc thay đổi các thẻ a và loại bỏ script
 class ContentRewriter {
-  constructor() {
-    this.element = this.element.bind(this);
+  constructor(origin) {
+    this.origin = origin;
   }
 
   element(element) {
-    // Xóa các script không mong muốn
-    if (element.tagName === 'script' && element.getAttribute('src')) {
+    // 1. Xóa script rác
+    if (element.tagName === 'script') {
       const src = element.getAttribute('src');
-      const shouldRemove = SCRIPTS_TO_REMOVE_PATTERNS.some(pattern => pattern.test(src));
-      if (shouldRemove) {
+      if (src && SCRIPTS_TO_REMOVE_PATTERNS.some(pattern => pattern.test(src))) {
         element.remove();
+        return;
       }
     }
 
-    // Chỉnh sửa tất cả các liên kết (thẻ <a>)
+    // 2. Sửa liên kết thẻ <a>
     if (element.tagName === 'a') {
       const href = element.getAttribute('href');
-      if (href) {
+      if (href && !href.startsWith('javascript:')) {
         try {
-          // Chuyển đổi mọi URL (tuyệt đối hay tương đối) thành đường dẫn tương đối
           const newUrl = new URL(href, TARGET_DOMAIN);
           element.setAttribute('href', `${newUrl.pathname}${newUrl.search}`);
-        } catch (e) {
-          // Bỏ qua các đường dẫn không hợp lệ
-        }
+        } catch (e) {}
       }
     }
 
-    // Chỉnh sửa các đường dẫn trong các thuộc tính khác
+    // 3. Sửa đường dẫn ảnh/dữ liệu
     ['src', 'data-src'].forEach(attr => {
       const value = element.getAttribute(attr);
       if (value) {
         try {
-          const newUrl = new URL(value, TARGET_DOMAIN);
-          element.setAttribute(attr, `${newUrl.pathname}${newUrl.search}`);
-        } catch (e) {
-          // Bỏ qua các đường dẫn không hợp lệ
-        }
+          // Nếu là đường dẫn tương đối, chuyển về domain gốc để hiển thị được ảnh
+          const absoluteUrl = new URL(value, TARGET_DOMAIN).href;
+          element.setAttribute(attr, absoluteUrl);
+        } catch (e) {}
       }
     });
   }
 }
 
-export async function onRequest(context) {
-  const { request } = context;
-  const url = new URL(request.url);
-  const path = url.pathname + url.search;
-  const targetUrl = `${TARGET_DOMAIN}${path}`;
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    const targetUrl = `${TARGET_DOMAIN}${url.pathname}${url.search}`;
 
-  try {
-    const response = await fetch(targetUrl, {
-      headers: request.headers,
-      redirect: 'follow'
-    });
+    try {
+      const response = await fetch(targetUrl, {
+        headers: request.headers,
+        redirect: 'follow'
+      });
 
-    const contentType = response.headers.get('Content-Type') || '';
+      const contentType = response.headers.get('Content-Type') || '';
 
-    if (contentType.includes('text/html')) {
-      const rewriter = new HTMLRewriter()
-        // Bộ xử lý riêng để chèn <style> và <base> vào thẻ <head>
-        .on('head', {
-          element(element) {
-            element.append(`<base href="${url.origin}">`, { html: true });
-            element.append(`<style>${FONT_SIZE_CSS}</style>`, { html: true });
-          }
-        })
-        // Bộ xử lý chung để thay đổi nội dung trang
-        .on('*', new ContentRewriter());
+      // Xử lý HTML
+      if (contentType.includes('text/html')) {
+        return new HTMLRewriter()
+          .on('head', {
+            element(element) {
+              element.append(`<meta name="viewport" content="width=device-width, initial-scale=1.0">`, { html: true });
+              element.append(`<style>${MODERN_UI_CSS}</style>`, { html: true });
+            }
+          })
+          .on('*', new ContentRewriter(url.origin))
+          .transform(response);
+      }
 
-      return rewriter.transform(response);
+      // Xử lý CSS (Sửa các đường dẫn url() bên trong CSS)
+      if (contentType.includes('text/css')) {
+        let text = await response.text();
+        text = text.replace(/url\(['"]?(\/[^'")]*)['"]?\)/g, `url('${TARGET_DOMAIN}$1')`);
+        return new Response(text, {
+          headers: { 'Content-Type': 'text/css' }
+        });
+      }
+
+      return response;
+    } catch (error) {
+      return new Response(`Lỗi kết nối: ${error.message}`, { status: 500 });
     }
-
-    if (contentType.includes('text/css')) {
-      const text = await response.text();
-      const rewriter = text.replace(
-        /url\(['"]?(\/[^'")]*)['"]?\)/g,
-        `url('${TARGET_DOMAIN}$1')`
-      );
-      return new Response(rewriter, response);
-    }
-
-    return response;
-
-  } catch (error) {
-    return new Response(`Error fetching from ${targetUrl}: ${error.message}`, {
-      status: 500
-    });
   }
-}
+};
