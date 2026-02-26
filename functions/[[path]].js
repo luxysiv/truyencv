@@ -1,42 +1,42 @@
 const TARGET_DOMAIN = 'https://truyensextv.com';
 
-// CSS tối ưu: Tự động giãn font từ 1.1rem (máy tính bảng) lên 1.5rem (màn hình 4K)
+// Cải tiến CSS với Media Query để xử lý màn hình lớn
 const FONT_SIZE_CSS = `
-  :root {
-    --base-font-size: clamp(1.15rem, 1rem + 0.6vw, 1.6rem);
+  /* Mặc định cho điện thoại (giữ nguyên 105% như bạn muốn) */
+  body, body * {
+    font-size: 105% !important;
+    line-height: 1.6 !important;
   }
 
-  html, body {
-    font-size: var(--base-font-size) !important;
-    line-height: 1.8 !important;
-    font-family: -apple-system, system-ui, sans-serif !important;
-    background-color: #f4f4f4; /* Màu nền nhẹ cho đỡ mỏi mắt */
+  /* Dành cho màn hình Laptop/Desktop (thường từ 1024px trở lên) */
+  @media (min-width: 1024px) {
+    body, body * {
+      font-size: 125% !important; /* Tăng rõ rệt để không bị bé trên màn hình lớn */
+      line-height: 1.7 !important;
+    }
   }
 
-  /* Ép mọi phần tử con kế thừa font size từ root */
-  body * {
-    font-size: inherit !important;
-    line-height: inherit !important;
+  /* Dành cho màn hình cực lớn hoặc 4K (từ 1920px trở lên) */
+  @media (min-width: 1920px) {
+    body, body * {
+      font-size: 140% !important;
+    }
   }
-
-  /* Ẩn các thành phần rác và quảng cáo */
+  
+  /* Các selector ẩn thành phần thừa của bạn */
+  div.logo2:nth-child(3) > div.dulieu:first-child > div.box > span:last-child,
   div.logo2:nth-child(3) > div.dulieu:first-child > div.box,
   #logo,
-  div.navbar,
-  div.footer,
-  .dulieu,
-  .bai-viet-box,
-  ins, .adsbygoogle,
-  div[style*="fixed"] { 
-    display: none !important; 
-  }
-
-  /* Căn giữa nội dung chính để dễ đọc trên màn hình cực rộng */
-  body {
-    max-width: 1200px;
-    margin: 0 auto !important;
-    background: white;
-    padding: 10px;
+  div.logo2:nth-child(3) > div.footer:last-child > center,
+  div.navbar:nth-child(2),
+  div.logo2:nth-child(3) > div.dulieu:first-child,
+  div.logo2:nth-child(3) > div.footer:last-child,
+  div.logo2:nth-child(3) > div.ndtruyen:nth-child(7) > em:first-child,
+  div.logo2:nth-child(3) > div.bai-viet-box:nth-child(20),
+  div[class="dulieu"],
+  div[class="navbar"],
+  div[class="footer"] {
+    display: none !important;
   }
 `;
 
@@ -46,20 +46,22 @@ const SCRIPTS_TO_REMOVE_PATTERNS = [
 ];
 
 class ContentRewriter {
+  constructor() {
+    this.element = this.element.bind(this);
+  }
+
   element(element) {
-    // 1. Loại bỏ các script không cần thiết
-    if (element.tagName === 'script') {
+    if (element.tagName === 'script' && element.getAttribute('src')) {
       const src = element.getAttribute('src');
-      if (src && SCRIPTS_TO_REMOVE_PATTERNS.some(p => p.test(src))) {
+      const shouldRemove = SCRIPTS_TO_REMOVE_PATTERNS.some(pattern => pattern.test(src));
+      if (shouldRemove) {
         element.remove();
-        return;
       }
     }
 
-    // 2. Sửa link thẻ <a>
     if (element.tagName === 'a') {
       const href = element.getAttribute('href');
-      if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {
+      if (href) {
         try {
           const newUrl = new URL(href, TARGET_DOMAIN);
           element.setAttribute('href', `${newUrl.pathname}${newUrl.search}`);
@@ -67,20 +69,18 @@ class ContentRewriter {
       }
     }
 
-    // 3. Sửa link ảnh và các tài nguyên khác
-    ['src', 'data-src', 'srcset'].forEach(attr => {
+    ['src', 'data-src'].forEach(attr => {
       const value = element.getAttribute(attr);
       if (value) {
         try {
           const newUrl = new URL(value, TARGET_DOMAIN);
-          element.setAttribute(attr, newUrl.toString());
+          element.setAttribute(attr, `${newUrl.pathname}${newUrl.search}`);
         } catch (e) {}
       }
     });
   }
 }
 
-// Cấu trúc chuẩn cho Cloudflare Pages Functions
 export async function onRequest(context) {
   const { request } = context;
   const url = new URL(request.url);
@@ -95,33 +95,33 @@ export async function onRequest(context) {
 
     const contentType = response.headers.get('Content-Type') || '';
 
-    // Xử lý HTML
     if (contentType.includes('text/html')) {
-      return new HTMLRewriter()
+      const rewriter = new HTMLRewriter()
         .on('head', {
           element(element) {
-            // Thêm meta viewport để ép trình duyệt nhận diện tỷ lệ màn hình lớn
-            element.append('<meta name="viewport" content="width=device-width, initial-scale=1.0">', { html: true });
-            element.append(`<base href="${url.origin}/">`, { html: true });
+            // Thêm base để fix link tương đối
+            element.append(`<base href="${url.origin}">`, { html: true });
+            // Chèn CSS Media Query vào
             element.append(`<style>${FONT_SIZE_CSS}</style>`, { html: true });
           }
         })
-        .on('*', new ContentRewriter())
-        .transform(response);
+        .on('*', new ContentRewriter());
+
+      return rewriter.transform(response);
     }
 
-    // Xử lý CSS bên ngoài (nếu có)
     if (contentType.includes('text/css')) {
-      let text = await response.text();
-      text = text.replace(/url\(['"]?(\/[^'")]*)['"]?\)/g, `url('${TARGET_DOMAIN}$1')`);
-      return new Response(text, { 
-        headers: { ...Object.fromEntries(response.headers), 'Content-Type': 'text/css' } 
-      });
+      const text = await response.text();
+      const rewriter = text.replace(
+        /url\(['"]?(\/[^'")]*)['"]?\)/g,
+        `url('${TARGET_DOMAIN}$1')`
+      );
+      return new Response(rewriter, response);
     }
 
     return response;
 
   } catch (error) {
-    return new Response(`Lỗi Proxy: ${error.message}`, { status: 500 });
+    return new Response(`Error: ${error.message}`, { status: 500 });
   }
 }
