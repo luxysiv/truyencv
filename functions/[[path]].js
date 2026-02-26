@@ -1,87 +1,93 @@
-export async function onRequest(context) {
-  const TARGET_DOMAIN = 'https://truyensextv.com';
-  const { request } = context;
+const TARGET_DOMAIN = 'https://truyensextv.com';
 
-  const url = new URL(request.url);
-  const targetUrl = TARGET_DOMAIN + url.pathname + url.search;
-
-  const FONT_SIZE_CSS = `
-    /* ===== MOBILE mặc định ===== */
-    html {
-      font-size: 105% !important;
-    }
-
-    body {
-      line-height: 1.6 !important;
-    }
-
-    /* ===== DESKTOP ===== */
-    @media (min-width: 1200px) {
-      html {
-        font-size: 115% !important;
-      }
-      body {
-        line-height: 1.75 !important;
-      }
-    }
-
-    /* ===== MÀN HÌNH LỚN (2K+) ===== */
-    @media (min-width: 1440px) {
-      html {
-        font-size: 125% !important;
-      }
-      body {
-        line-height: 1.85 !important;
-      }
-    }
-
-    /* ===== ẨN THÀNH PHẦN KHÔNG CẦN ===== */
-    div.logo2,
-    div.navbar,
-    div.footer,
-    #logo {
-      display: none !important;
-    }
-  `;
-
-  const SCRIPTS_TO_REMOVE_PATTERNS = [
-    /truyensex.*\/anh\//,
-    /lv\/esnk\//
-  ];
-
-  class ContentRewriter {
-    element(element) {
-      // Xóa script không mong muốn
-      if (element.tagName === 'script') {
-        const src = element.getAttribute('src');
-        if (src && SCRIPTS_TO_REMOVE_PATTERNS.some(p => p.test(src))) {
-          element.remove();
-        }
-      }
-
-      // Rewrite link <a>
-      if (element.tagName === 'a') {
-        const href = element.getAttribute('href');
-        if (href) {
-          try {
-            const newUrl = new URL(href, TARGET_DOMAIN);
-            element.setAttribute('href', newUrl.pathname + newUrl.search);
-          } catch {}
-        }
-      }
-
-      // Rewrite src / data-src
-      ['src', 'data-src'].forEach(attr => {
-        const value = element.getAttribute(attr);
-        if (value) {
-          try {
-            const newUrl = new URL(value, TARGET_DOMAIN);
-            element.setAttribute(attr, newUrl.pathname + newUrl.search);
-          } catch {}
-        }
-      });
-    }
+// CSS tối ưu: Tự động giãn font từ 1.1rem (máy tính bảng) lên 1.5rem (màn hình 4K)
+const FONT_SIZE_CSS = `
+  :root {
+    --base-font-size: clamp(1.15rem, 1rem + 0.6vw, 1.6rem);
   }
+
+  html, body {
+    font-size: var(--base-font-size) !important;
+    line-height: 1.8 !important;
+    font-family: -apple-system, system-ui, sans-serif !important;
+    background-color: #f4f4f4; /* Màu nền nhẹ cho đỡ mỏi mắt */
+  }
+
+  /* Ép mọi phần tử con kế thừa font size từ root */
+  body * {
+    font-size: inherit !important;
+    line-height: inherit !important;
+  }
+
+  /* Ẩn các thành phần rác và quảng cáo */
+  div.logo2:nth-child(3) > div.dulieu:first-child > div.box,
+  #logo,
+  div.navbar,
+  div.footer,
+  .dulieu,
+  .bai-viet-box,
+  ins, .adsbygoogle,
+  div[style*="fixed"] { 
+    display: none !important; 
+  }
+
+  /* Căn giữa nội dung chính để dễ đọc trên màn hình cực rộng */
+  body {
+    max-width: 1200px;
+    margin: 0 auto !important;
+    background: white;
+    padding: 10px;
+  }
+`;
+
+const SCRIPTS_TO_REMOVE_PATTERNS = [
+  /truyensex.*\/anh\//,
+  /lv\/esnk\//,
+  /google-analytics/,
+  /adsbygoogle/
+];
+
+class ContentRewriter {
+  element(element) {
+    // 1. Loại bỏ các script không cần thiết
+    if (element.tagName === 'script') {
+      const src = element.getAttribute('src');
+      if (src && SCRIPTS_TO_REMOVE_PATTERNS.some(p => p.test(src))) {
+        element.remove();
+        return;
+      }
+    }
+
+    // 2. Sửa link thẻ <a>
+    if (element.tagName === 'a') {
+      const href = element.getAttribute('href');
+      if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {
+        try {
+          const newUrl = new URL(href, TARGET_DOMAIN);
+          element.setAttribute('href', `${newUrl.pathname}${newUrl.search}`);
+        } catch (e) {}
+      }
+    }
+
+    // 3. Sửa link ảnh và các tài nguyên khác
+    ['src', 'data-src', 'srcset'].forEach(attr => {
+      const value = element.getAttribute(attr);
+      if (value) {
+        try {
+          const newUrl = new URL(value, TARGET_DOMAIN);
+          element.setAttribute(attr, newUrl.toString());
+        } catch (e) {}
+      }
+    });
+  }
+}
+
+// Cấu trúc chuẩn cho Cloudflare Pages Functions
+export async function onRequest(context) {
+  const { request } = context;
+  const url = new URL(request.url);
+  const path = url.pathname + url.search;
+  const targetUrl = `${TARGET_DOMAIN}${path}`;
 
   try {
     const response = await fetch(targetUrl, {
@@ -89,14 +95,16 @@ export async function onRequest(context) {
       redirect: 'follow'
     });
 
-    const contentType = response.headers.get('content-type') || '';
+    const contentType = response.headers.get('Content-Type') || '';
 
-    // ===== HTML =====
+    // Xử lý HTML
     if (contentType.includes('text/html')) {
       return new HTMLRewriter()
         .on('head', {
           element(element) {
-            element.append(`<base href="${url.origin}">`, { html: true });
+            // Thêm meta viewport để ép trình duyệt nhận diện tỷ lệ màn hình lớn
+            element.append('<meta name="viewport" content="width=device-width, initial-scale=1.0">', { html: true });
+            element.append(`<base href="${url.origin}/">`, { html: true });
             element.append(`<style>${FONT_SIZE_CSS}</style>`, { html: true });
           }
         })
@@ -104,19 +112,18 @@ export async function onRequest(context) {
         .transform(response);
     }
 
-    // ===== CSS =====
+    // Xử lý CSS bên ngoài (nếu có)
     if (contentType.includes('text/css')) {
-      const text = await response.text();
-      const rewritten = text.replace(
-        /url\(['"]?(\/[^'")]*)['"]?\)/g,
-        `url('${TARGET_DOMAIN}$1')`
-      );
-      return new Response(rewritten, response);
+      let text = await response.text();
+      text = text.replace(/url\(['"]?(\/[^'")]*)['"]?\)/g, `url('${TARGET_DOMAIN}$1')`);
+      return new Response(text, { 
+        headers: { ...Object.fromEntries(response.headers), 'Content-Type': 'text/css' } 
+      });
     }
 
     return response;
 
-  } catch (err) {
-    return new Response("Fetch error: " + err.message, { status: 500 });
+  } catch (error) {
+    return new Response(`Lỗi Proxy: ${error.message}`, { status: 500 });
   }
 }
