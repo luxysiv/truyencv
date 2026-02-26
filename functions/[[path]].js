@@ -42,9 +42,7 @@ const FONT_SIZE_CSS = `
 
 const SCRIPTS_TO_REMOVE_PATTERNS = [
   /truyensex.*\/anh\//,
-  /lv\/esnk\//,
-  /google-analytics/,
-  /adsbygoogle/
+  /lv\/esnk\//
 ];
 
 class ContentRewriter {
