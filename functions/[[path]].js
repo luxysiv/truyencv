@@ -1,120 +1,116 @@
 const TARGET_DOMAIN = 'https://truyensextv.com';
+
+// Sử dụng clamp để font chữ tự động giãn từ 1.1rem đến 1.5rem tùy màn hình
 const FONT_SIZE_CSS = `
-  body, body * {
-    font-size: 105% !important;
-    line-height: 1.6 !important;
+  :root {
+    --base-font-size: clamp(1.1rem, 1rem + 0.5vw, 1.5rem);
   }
-  
-  div.logo2:nth-child(3) > div.dulieu:first-child > div.box > span:last-child,
+
+  html, body {
+    font-size: var(--base-font-size) !important;
+    line-height: 1.8 !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  }
+
+  /* Ép tất cả các thẻ con kế thừa font size từ root */
+  body * {
+    font-size: inherit !important;
+    line-height: inherit !important;
+  }
+
+  /* Danh sách các phần tử cần ẩn (tối ưu selector) */
   div.logo2:nth-child(3) > div.dulieu:first-child > div.box,
   #logo,
-  div.logo2:nth-child(3) > div.footer:last-child > center,
-  div.navbar:nth-child(2),
-  div.logo2:nth-child(3) > div.dulieu:first-child,
-  div.logo2:nth-child(3) > div.footer:last-child,
-  div.logo2:nth-child(3) > div.ndtruyen:nth-child(7) > em:first-child,
-  div.logo2:nth-child(3) > div.ndtruyen:nth-child(7) > em:first-child,
-  div.logo2:nth-child(3) > div.bai-viet-box:nth-child(20),
-  div[class="dulieu"],
-  div[class="navbar"],
-  div[class="footer"] {
-    display: none !important;
+  div.navbar,
+  div.footer,
+  .dulieu,
+  .bai-viet-box,
+  ins, .adsbygoogle { 
+    display: none !important; 
   }
 `;
 
 const SCRIPTS_TO_REMOVE_PATTERNS = [
   /truyensex.*\/anh\//,
-  /lv\/esnk\//
+  /lv\/esnk\//,
+  /google-analytics/,
+  /adsbygoogle/
 ];
 
-// Lớp xử lý chính cho việc thay đổi các thẻ a và loại bỏ script
 class ContentRewriter {
-  constructor() {
-    this.element = this.element.bind(this);
-  }
-
   element(element) {
-    // Xóa các script không mong muốn
-    if (element.tagName === 'script' && element.getAttribute('src')) {
+    // 1. Xóa các script quảng cáo/theo dõi
+    if (element.tagName === 'script') {
       const src = element.getAttribute('src');
-      const shouldRemove = SCRIPTS_TO_REMOVE_PATTERNS.some(pattern => pattern.test(src));
-      if (shouldRemove) {
+      if (src && SCRIPTS_TO_REMOVE_PATTERNS.some(pattern => pattern.test(src))) {
         element.remove();
+        return;
       }
     }
 
-    // Chỉnh sửa tất cả các liên kết (thẻ <a>)
+    // 2. Chuyển đổi href của thẻ <a> về relative path
     if (element.tagName === 'a') {
       const href = element.getAttribute('href');
-      if (href) {
+      if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {
         try {
-          // Chuyển đổi mọi URL (tuyệt đối hay tương đối) thành đường dẫn tương đối
           const newUrl = new URL(href, TARGET_DOMAIN);
           element.setAttribute('href', `${newUrl.pathname}${newUrl.search}`);
-        } catch (e) {
-          // Bỏ qua các đường dẫn không hợp lệ
-        }
+        } catch (e) {}
       }
     }
 
-    // Chỉnh sửa các đường dẫn trong các thuộc tính khác
-    ['src', 'data-src'].forEach(attr => {
+    // 3. Sửa lỗi đường dẫn ảnh (src, data-src)
+    ['src', 'data-src', 'srcset'].forEach(attr => {
       const value = element.getAttribute(attr);
       if (value) {
         try {
           const newUrl = new URL(value, TARGET_DOMAIN);
-          element.setAttribute(attr, `${newUrl.pathname}${newUrl.search}`);
-        } catch (e) {
-          // Bỏ qua các đường dẫn không hợp lệ
-        }
+          element.setAttribute(attr, newUrl.toString());
+        } catch (e) {}
       }
     });
   }
 }
 
-export async function onRequest(context) {
-  const { request } = context;
-  const url = new URL(request.url);
-  const path = url.pathname + url.search;
-  const targetUrl = `${TARGET_DOMAIN}${path}`;
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    const path = url.pathname + url.search;
+    const targetUrl = `${TARGET_DOMAIN}${path}`;
 
-  try {
-    const response = await fetch(targetUrl, {
-      headers: request.headers,
-      redirect: 'follow'
-    });
+    try {
+      const response = await fetch(targetUrl, {
+        headers: request.headers,
+        redirect: 'follow'
+      });
 
-    const contentType = response.headers.get('Content-Type') || '';
+      const contentType = response.headers.get('Content-Type') || '';
 
-    if (contentType.includes('text/html')) {
-      const rewriter = new HTMLRewriter()
-        // Bộ xử lý riêng để chèn <style> và <base> vào thẻ <head>
-        .on('head', {
-          element(element) {
-            element.append(`<base href="${url.origin}">`, { html: true });
-            element.append(`<style>${FONT_SIZE_CSS}</style>`, { html: true });
-          }
-        })
-        // Bộ xử lý chung để thay đổi nội dung trang
-        .on('*', new ContentRewriter());
+      if (contentType.includes('text/html')) {
+        return new HTMLRewriter()
+          .on('head', {
+            element(element) {
+              // Thêm meta viewport để mobile/màn hình lớn nhận diện đúng tỉ lệ
+              element.append('<meta name="viewport" content="width=device-width, initial-scale=1.0">', { html: true });
+              element.append(`<base href="${url.origin}/">`, { html: true });
+              element.append(`<style>${FONT_SIZE_CSS}</style>`, { html: true });
+            }
+          })
+          .on('*', new ContentRewriter())
+          .transform(response);
+      }
 
-      return rewriter.transform(response);
+      // Xử lý CSS bên ngoài để fix link ảnh/font
+      if (contentType.includes('text/css')) {
+        let text = await response.text();
+        text = text.replace(/url\(['"]?(\/[^'")]*)['"]?\)/g, `url('${TARGET_DOMAIN}$1')`);
+        return new Response(text, { headers: response.headers });
+      }
+
+      return response;
+
+    } catch (error) {
+      return new Response(`Lỗi kết nối: ${error.message}`, { status: 500 });
     }
-
-    if (contentType.includes('text/css')) {
-      const text = await response.text();
-      const rewriter = text.replace(
-        /url\(['"]?(\/[^'")]*)['"]?\)/g,
-        `url('${TARGET_DOMAIN}$1')`
-      );
-      return new Response(rewriter, response);
-    }
-
-    return response;
-
-  } catch (error) {
-    return new Response(`Error fetching from ${targetUrl}: ${error.message}`, {
-      status: 500
-    });
   }
-}
+};
