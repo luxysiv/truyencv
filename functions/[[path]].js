@@ -1,26 +1,20 @@
 const TARGET_DOMAIN = 'https://truyenxxx.net';
 
 const FONT_SIZE_CSS = `
-.single-content {
-  font-size: 115% !important;
-  line-height: 1.7 !important;
+.single-content{
+  font-size:115% !important;
+  line-height:1.7 !important;
 }
 
-.single-content p,
-.single-content center,
-.single-content strong {
-  font-size: inherit !important;
-}
-
-@media (min-width: 1024px) {
-  .single-content {
-    font-size: 130% !important;
+@media (min-width:1024px){
+  .single-content{
+    font-size:130% !important;
   }
 }
 
-@media (min-width: 1920px) {
-  .single-content {
-    font-size: 145% !important;
+@media (min-width:1920px){
+  .single-content{
+    font-size:145% !important;
   }
 }
 `;
@@ -31,62 +25,98 @@ const SCRIPTS_TO_REMOVE_PATTERNS = [
 ];
 
 class ContentRewriter {
-  element(element) {
 
-    if (element.tagName === 'script' && element.getAttribute('src')) {
-      const src = element.getAttribute('src');
+  element(element){
 
-      const shouldRemove = SCRIPTS_TO_REMOVE_PATTERNS.some(p => p.test(src));
+    // xóa script quảng cáo
+    if (element.tagName === "script" && element.getAttribute("src")){
 
-      if (shouldRemove) element.remove();
+      const src = element.getAttribute("src");
+
+      const remove = SCRIPTS_TO_REMOVE_PATTERNS.some(p=>p.test(src));
+
+      if(remove) element.remove();
     }
 
-    if (element.tagName === 'a') {
-      const href = element.getAttribute('href');
+    // rewrite link
+    if(element.tagName === "a"){
 
-      if (href) {
-        try {
-          const newUrl = new URL(href, TARGET_DOMAIN);
-          element.setAttribute('href', newUrl.pathname + newUrl.search);
-        } catch(e){}
+      const href = element.getAttribute("href");
+
+      if(href){
+        try{
+
+          const newUrl = new URL(href,TARGET_DOMAIN);
+
+          element.setAttribute(
+            "href",
+            newUrl.pathname + newUrl.search
+          );
+
+        }catch(e){}
       }
     }
 
-    ['src','data-src'].forEach(attr=>{
+    // rewrite src
+    ["src","data-src"].forEach(attr=>{
+
       const value = element.getAttribute(attr);
 
-      if (value) {
-        try {
-          const newUrl = new URL(value, TARGET_DOMAIN);
-          element.setAttribute(attr, newUrl.pathname + newUrl.search);
-        } catch(e){}
+      if(value){
+
+        try{
+
+          const newUrl = new URL(value,TARGET_DOMAIN);
+
+          element.setAttribute(
+            attr,
+            newUrl.pathname + newUrl.search
+          );
+
+        }catch(e){}
       }
+
     });
 
   }
+
 }
 
-export async function onRequest(context) {
+export async function onRequest(context){
 
-  const { request } = context;
+  const {request} = context;
 
   const url = new URL(request.url);
+
   const targetUrl = TARGET_DOMAIN + url.pathname + url.search;
 
-  try {
+  try{
 
     const response = await fetch(targetUrl,{
       headers:request.headers,
-      redirect:'follow'
+      redirect:"follow"
     });
 
-    const contentType = response.headers.get('content-type') || '';
+    const contentType = response.headers.get("content-type") || "";
 
-    if (contentType.includes('text/html')) {
+    if(contentType.includes("text/html")){
+
+      let html = await response.text();
+
+      // dọn HTML rác an toàn
+      html = html
+
+      // xóa p rỗng
+      .replace(/<p>\s*<\/p>/gi,"")
+
+      // gộp nhiều br thành 1
+      .replace(/(<br\s*\/?>\s*){2,}/gi,"<br>");
+
+      const newResponse = new Response(html,response);
 
       const rewriter = new HTMLRewriter()
 
-      .on('head',{
+      .on("head",{
         element(el){
 
           el.append(`<base href="${url.origin}">`,{html:true});
@@ -96,12 +126,12 @@ export async function onRequest(context) {
         }
       })
 
-      .on('*', new ContentRewriter());
+      .on("*",new ContentRewriter());
 
-      return rewriter.transform(response);
+      return rewriter.transform(newResponse);
     }
 
-    if (contentType.includes('text/css')) {
+    if(contentType.includes("text/css")){
 
       const text = await response.text();
 
@@ -115,9 +145,12 @@ export async function onRequest(context) {
 
     return response;
 
-  } catch(e){
+  }catch(e){
 
-    return new Response("Error: "+e.message,{status:500});
+    return new Response(
+      "Error: "+e.message,
+      {status:500}
+    );
 
   }
 
