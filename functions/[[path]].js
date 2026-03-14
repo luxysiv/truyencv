@@ -1,4 +1,4 @@
-const TARGET_DOMAIN = 'https://truyensextv.com';
+const TARGET_DOMAIN = 'https://truyenxxx.net';
 
 // Cải tiến CSS với Media Query để xử lý màn hình lớn
 const FONT_SIZE_CSS = `
