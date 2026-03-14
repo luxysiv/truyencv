@@ -4,6 +4,7 @@ const FONT_SIZE_CSS = `
 .single-content{
   font-size:115% !important;
   line-height:1.7 !important;
+  font-weight:500 !important;
 }
 
 @media (min-width:1024px){
